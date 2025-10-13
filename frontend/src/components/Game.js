@@ -147,6 +147,10 @@ export default function Game({ exercise, onFinish }) {
                       onChange={(e) => setConjugationAnswers({ ...conjugationAnswers, [pronoun]: e.target.value })}
                       placeholder="..."
                       className="flex-1 px-4 py-3 text-lg text-center rounded-xl border-3 border-blue-300 focus:border-blue-500 outline-none backdrop-blur-sm bg-white/80 shadow-lg transition-all"
+                      autoComplete="off"
+                      autoCorrect="off"
+                      autoCapitalize="off"
+                      spellCheck="false"
                     />
                   </div>
                 ))}
