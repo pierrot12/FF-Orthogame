@@ -1,6 +1,6 @@
 const API_URL = window.location.hostname === 'localhost' 
   ? 'http://localhost:5001/api' 
-  : `http://${window.location.hostname}:5001/api`;
+  : 'http://${window.location.hostname}/api';
 
 export const loginUser = async (username, password) => {
   const response = await fetch(`${API_URL}/users/login`, {
