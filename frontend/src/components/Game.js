@@ -165,6 +165,10 @@ export default function Game({ exercise, onFinish }) {
               placeholder="Ta réponse..."
               className="w-full px-6 py-4 text-2xl text-center rounded-xl border-4 border-blue-300 focus:border-blue-500 outline-none backdrop-blur-sm bg-white/90 shadow-xl transition-all"
               autoFocus
+              autoComplete="off"
+                      autoCorrect="off"
+                      autoCapitalize="off"
+                      spellCheck="false"
             />
           )}
 
