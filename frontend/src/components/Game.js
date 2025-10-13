@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 
 export default function Game({ exercise, onFinish }) {
+  const [shuffledWords, setShuffledWords] = useState([]);
   const [currentWordIndex, setCurrentWordIndex] = useState(0);
   const [userAnswer, setUserAnswer] = useState('');
   const [conjugationAnswers, setConjugationAnswers] = useState({
@@ -8,13 +9,32 @@ export default function Game({ exercise, onFinish }) {
   });
   const [results, setResults] = useState([]);
 
-  const currentWord = exercise.words[currentWordIndex];
-  const progress = ((currentWordIndex + 1) / exercise.words.length) * 100;
-  const isVerbPresent = currentWord.type === 'verb' && currentWord.conjugation === 'present' && currentWord.conjugatedForms;
+  // Fonction pour mélanger un tableau (algorithme de Fisher-Yates)
+  const shuffleArray = (array) => {
+    const shuffled = [...array];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    return shuffled;
+  };
+
+  // Mélanger les mots au premier chargement
+  useEffect(() => {
+    if (exercise.words && exercise.words.length > 0) {
+      setShuffledWords(shuffleArray(exercise.words));
+    }
+  }, [exercise.words]);
+
+  const currentWord = shuffledWords[currentWordIndex];
+  const progress = shuffledWords.length > 0 ? ((currentWordIndex + 1) / shuffledWords.length) * 100 : 0;
+  const isVerbPresent = currentWord?.type === 'verb' && currentWord?.conjugation === 'present' && currentWord?.conjugatedForms;
 
   useEffect(() => {
-    speakWord(currentWord);
-  }, [currentWordIndex]);
+    if (currentWord) {
+      speakWord(currentWord);
+    }
+  }, [currentWordIndex, currentWord]);
 
   const speakWord = (word) => {
     if ('speechSynthesis' in window) {
@@ -54,19 +74,30 @@ export default function Game({ exercise, onFinish }) {
     setUserAnswer('');
     setConjugationAnswers({ je: '', tu: '', il: '', nous: '', vous: '', ils: '' });
 
-    if (currentWordIndex + 1 < exercise.words.length) {
+    if (currentWordIndex + 1 < shuffledWords.length) {
       setCurrentWordIndex(currentWordIndex + 1);
     } else {
       onFinish(newResults);
     }
   };
 
+  // Afficher un message de chargement si les mots ne sont pas encore mélangés
+  if (!currentWord) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4" style={{background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'}}>
+        <div className="backdrop-blur-xl bg-white/95 border border-white/30 rounded-3xl shadow-2xl p-8">
+          <p className="text-2xl font-bold text-gray-700">Chargement...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center p-4" style={{background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'}}>
       <div className="backdrop-blur-xl bg-white/95 border border-white/30 rounded-3xl shadow-2xl p-8 w-full max-w-3xl">
         <div className="mb-6">
           <div className="flex justify-between items-center mb-2">
-            <span className="text-gray-700 font-bold text-lg">Mot {currentWordIndex + 1} sur {exercise.words.length}</span>
+            <span className="text-gray-700 font-bold text-lg">Mot {currentWordIndex + 1} sur {shuffledWords.length}</span>
             <span className="text-blue-600 font-bold text-xl">{Math.round(progress)}%</span>
           </div>
           <div className="w-full bg-gray-200 rounded-full h-4 shadow-inner">
