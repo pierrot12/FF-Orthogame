@@ -6,6 +6,7 @@ export default function Login({ onLogin }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleLogin = async () => {
     if (!username.trim() || !password.trim()) {
@@ -13,12 +14,16 @@ export default function Login({ onLogin }) {
       return;
     }
     
+    setIsLoading(true);
     try {
       const data = await loginUser(username, password);
+      // Le token est déjà sauvegardé dans localStorage par loginUser()
       onLogin(data);
       setLoginError('');
     } catch (error) {
       setLoginError(error.message);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -45,6 +50,7 @@ export default function Login({ onLogin }) {
               onChange={(e) => setUsername(e.target.value)}
               className="w-full px-5 py-4 rounded-xl backdrop-blur-md bg-white/20 border-2 border-white/30 focus:border-white/60 focus:bg-white/30 text-white placeholder-white/60 outline-none text-lg transition-all shadow-lg"
               onKeyPress={(e) => e.key === 'Enter' && handleLogin()}
+              disabled={isLoading}
             />
           </div>
           
@@ -57,6 +63,7 @@ export default function Login({ onLogin }) {
               onChange={(e) => setPassword(e.target.value)}
               className="w-full px-5 py-4 rounded-xl backdrop-blur-md bg-white/20 border-2 border-white/30 focus:border-white/60 focus:bg-white/30 text-white placeholder-white/60 outline-none text-lg transition-all shadow-lg"
               onKeyPress={(e) => e.key === 'Enter' && handleLogin()}
+              disabled={isLoading}
             />
           </div>
           
@@ -68,9 +75,10 @@ export default function Login({ onLogin }) {
           
           <button
             onClick={handleLogin}
-            className="w-full bg-white/30 hover:bg-white/40 backdrop-blur-md border-2 border-white/40 text-white py-4 rounded-xl font-bold text-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105 active:scale-95"
+            disabled={isLoading}
+            className="w-full bg-white/30 hover:bg-white/40 backdrop-blur-md border-2 border-white/40 text-white py-4 rounded-xl font-bold text-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
           >
-            Se connecter 🚀
+            {isLoading ? 'Connexion...' : 'Se connecter 🚀'}
           </button>
         </div>
       </div>
