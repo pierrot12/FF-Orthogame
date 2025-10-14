@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { BookOpen } from 'lucide-react';
-import { loginUser } from '../services/api';
+import { login } from '../services/api';
 
 export default function Login({ onLogin }) {
   const [username, setUsername] = useState('');
@@ -16,8 +16,7 @@ export default function Login({ onLogin }) {
     
     setIsLoading(true);
     try {
-      const data = await loginUser(username, password);
-      // Le token est déjà sauvegardé dans localStorage par loginUser()
+      const data = await login(username, password);
       onLogin(data);
       setLoginError('');
     } catch (error) {

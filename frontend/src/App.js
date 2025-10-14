@@ -6,7 +6,8 @@ import CreateUser from './components/CreateUser';
 import CreateExercise from './components/CreateExercise';
 import Game from './components/Game';
 import Results from './components/Results';
-import { fetchExercises, fetchScores, fetchUsers, deleteExercise as apiDeleteExercise, deleteUser as apiDeleteUser, saveScore } from './services/api';
+import Badges from './components/Badges';
+import { fetchExercises, fetchScores, fetchUsers, deleteExercise as apiDeleteExercise, deleteUser as apiDeleteUser } from './services/api';
 
 function App() {
   const [user, setUser] = useState(null);
@@ -69,22 +70,9 @@ function App() {
     setGameState('playing');
   };
 
-  const handleGameFinish = async (results) => {
-    const correctWords = results.filter(r => r.isCorrect).length;
-    const totalWords = currentExercise.words.length;
-    const score = Math.round((correctWords / totalWords) * 100);
-
-    await saveScore({
-      username: user.username,
-      exerciseName: currentExercise.name,
-      score,
-      totalWords,
-      correctWords
-    });
-
+  const handleGameFinish = (results) => {
     setGameResults(results);
     setGameState('results');
-    loadData();
   };
 
   const handleCreateUser = () => {
@@ -94,6 +82,19 @@ function App() {
   const handleDeleteUser = async (userId) => {
     if (!window.confirm('Êtes-vous sûr de vouloir supprimer cet utilisateur ?')) return;
     await apiDeleteUser(userId);
+    loadData();
+  };
+
+  const handleViewBadges = () => {
+    setGameState('badges');
+  };
+
+  const handleUserUpdate = (newBadges) => {
+    // Mettre à jour l'utilisateur avec les nouveaux badges
+    setUser({
+      ...user,
+      badges: [...(user.badges || []), ...newBadges]
+    });
     loadData();
   };
 
@@ -112,7 +113,10 @@ function App() {
     return (
       <CreateUser
         currentUsername={user.username}
-        onSuccess={handleBackToMenu}
+        onSuccess={() => {
+          loadData();
+          handleBackToMenu();
+        }}
         onCancel={handleBackToMenu}
       />
     );
@@ -123,7 +127,10 @@ function App() {
       <CreateExercise
         currentUsername={user.username}
         editingExercise={editingExercise}
-        onSuccess={handleBackToMenu}
+        onSuccess={() => {
+          loadData();
+          handleBackToMenu();
+        }}
         onCancel={handleBackToMenu}
       />
     );
@@ -145,6 +152,16 @@ function App() {
         exercise={currentExercise}
         results={gameResults}
         onBackToMenu={handleBackToMenu}
+        onUserUpdate={handleUserUpdate}
+      />
+    );
+  }
+
+  if (gameState === 'badges') {
+    return (
+      <Badges
+        currentUser={user}
+        onBack={handleBackToMenu}
       />
     );
   }
@@ -162,6 +179,7 @@ function App() {
       onStartGame={handleStartGame}
       onCreateUser={handleCreateUser}
       onDeleteUser={handleDeleteUser}
+      onViewBadges={handleViewBadges}
     />
   );
 }

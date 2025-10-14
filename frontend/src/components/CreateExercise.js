@@ -33,7 +33,8 @@ export default function CreateExercise({ currentUsername, editingExercise, onSuc
   const handleAddWord = () => {
     if (!newWord.text.trim()) return;
     
-    if (newWord.type === 'verb' && newWord.conjugation === 'present') {
+    // Ouvrir le modal de conjugaison pour TOUS les verbes (peu importe le temps)
+    if (newWord.type === 'verb') {
       setConjugationData({ je: '', tu: '', il: '', nous: '', vous: '', ils: '' });
       setShowConjugationModal(true);
     } else {
@@ -208,6 +209,7 @@ export default function CreateExercise({ currentUsername, editingExercise, onSuc
       {showConjugationModal && conjugationData && (
         <ConjugationModal
           verb={newWord.text}
+          conjugation={newWord.conjugation}
           conjugationData={conjugationData}
           setConjugationData={setConjugationData}
           onConfirm={confirmConjugation}

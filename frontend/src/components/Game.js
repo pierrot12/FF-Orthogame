@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
-export default function Game({ exercise, onFinish }) {
+export default function Game({ exercise, onFinish, onQuit }) {
   const [shuffledWords, setShuffledWords] = useState([]);
   const [currentWordIndex, setCurrentWordIndex] = useState(0);
   const [userAnswer, setUserAnswer] = useState('');
@@ -96,6 +96,14 @@ export default function Game({ exercise, onFinish }) {
     <div className="min-h-screen flex items-center justify-center p-4" style={{background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'}}>
       <div className="backdrop-blur-xl bg-white/95 border border-white/30 rounded-3xl shadow-2xl p-8 w-full max-w-3xl">
         <div className="mb-6">
+          <div className="flex justify-between items-center mb-4">
+            <button
+              onClick={() => window.location.href = '/'}
+              className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg font-semibold transition-all transform hover:scale-105 flex items-center space-x-2"
+            >
+              <span>← Quitter</span>
+            </button>
+          </div>
           <div className="flex justify-between items-center mb-2">
             <span className="text-gray-700 font-bold text-lg">Mot {currentWordIndex + 1} sur {shuffledWords.length}</span>
             <span className="text-blue-600 font-bold text-xl">{Math.round(progress)}%</span>
@@ -131,29 +139,50 @@ export default function Game({ exercise, onFinish }) {
           {isVerbPresent ? (
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
-                {[
-                  { pronoun: 'je', label: 'Je' },
-                  { pronoun: 'tu', label: 'Tu' },
-                  { pronoun: 'il', label: 'Il/Elle' },
-                  { pronoun: 'nous', label: 'Nous' },
-                  { pronoun: 'vous', label: 'Vous' },
-                  { pronoun: 'ils', label: 'Ils/Elles' }
-                ].map(({ pronoun, label }) => (
-                  <div key={pronoun} className="flex items-center space-x-2">
-                    <label className="font-bold text-gray-700 w-20 text-right">{label}</label>
-                    <input
-                      type="text"
-                      value={conjugationAnswers[pronoun]}
-                      onChange={(e) => setConjugationAnswers({ ...conjugationAnswers, [pronoun]: e.target.value })}
-                      placeholder="..."
-                      className="flex-1 px-4 py-3 text-lg text-center rounded-xl border-3 border-blue-300 focus:border-blue-500 outline-none backdrop-blur-sm bg-white/80 shadow-lg transition-all"
-                      autoComplete="off"
-                      autoCorrect="off"
-                      autoCapitalize="off"
-                      spellCheck="false"
-                    />
-                  </div>
-                ))}
+                <div className="space-y-3">
+                  {[
+                    { pronoun: 'je', label: 'Je' },
+                    { pronoun: 'tu', label: 'Tu' },
+                    { pronoun: 'il', label: 'Il/Elle' }
+                  ].map(({ pronoun, label }) => (
+                    <div key={pronoun} className="flex items-center space-x-2">
+                      <label className="font-bold text-gray-700 w-20 text-right">{label}</label>
+                      <input
+                        type="text"
+                        value={conjugationAnswers[pronoun]}
+                        onChange={(e) => setConjugationAnswers({ ...conjugationAnswers, [pronoun]: e.target.value })}
+                        placeholder="..."
+                        className="flex-1 px-4 py-3 text-lg text-center rounded-xl border-3 border-blue-300 focus:border-blue-500 outline-none backdrop-blur-sm bg-white/80 shadow-lg transition-all"
+                        autoComplete="off"
+                        autoCorrect="off"
+                        autoCapitalize="off"
+                        spellCheck="false"
+                      />
+                    </div>
+                  ))}
+                </div>
+                <div className="space-y-3">
+                  {[
+                    { pronoun: 'nous', label: 'Nous' },
+                    { pronoun: 'vous', label: 'Vous' },
+                    { pronoun: 'ils', label: 'Ils/Elles' }
+                  ].map(({ pronoun, label }) => (
+                    <div key={pronoun} className="flex items-center space-x-2">
+                      <label className="font-bold text-gray-700 w-20 text-right">{label}</label>
+                      <input
+                        type="text"
+                        value={conjugationAnswers[pronoun]}
+                        onChange={(e) => setConjugationAnswers({ ...conjugationAnswers, [pronoun]: e.target.value })}
+                        placeholder="..."
+                        className="flex-1 px-4 py-3 text-lg text-center rounded-xl border-3 border-blue-300 focus:border-blue-500 outline-none backdrop-blur-sm bg-white/80 shadow-lg transition-all"
+                        autoComplete="off"
+                        autoCorrect="off"
+                        autoCapitalize="off"
+                        spellCheck="false"
+                      />
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           ) : (
@@ -166,9 +195,9 @@ export default function Game({ exercise, onFinish }) {
               className="w-full px-6 py-4 text-2xl text-center rounded-xl border-4 border-blue-300 focus:border-blue-500 outline-none backdrop-blur-sm bg-white/90 shadow-xl transition-all"
               autoFocus
               autoComplete="off"
-                      autoCorrect="off"
-                      autoCapitalize="off"
-                      spellCheck="false"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck="false"
             />
           )}
 

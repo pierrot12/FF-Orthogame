@@ -1,19 +1,7 @@
-const API_URL = window.location.hostname === 'localhost' 
-  ? 'http://localhost:5001/api' 
-  : `${window.location.protocol}//${window.location.hostname}/api`;
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001/api';
 
-// Fonction helper pour ajouter le token aux headers
-const getAuthHeaders = () => {
-  const token = localStorage.getItem('token');
-  const headers = { 'Content-Type': 'application/json' };
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
-  return headers;
-};
-
-// Gestion de l'authentification
-export const loginUser = async (username, password) => {
+// Users
+export const login = async (username, password) => {
   const response = await fetch(`${API_URL}/users/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -23,105 +11,92 @@ export const loginUser = async (username, password) => {
     const error = await response.json();
     throw new Error(error.error || 'Erreur de connexion');
   }
-  const data = await response.json();
-  
-  // Sauvegarder le token et l'utilisateur dans localStorage
-  if (data.token) {
-    localStorage.setItem('token', data.token);
-    localStorage.setItem('user', JSON.stringify(data.user || data));
-  }
-  
-  return data;
-};
-
-export const logoutUser = () => {
-  localStorage.removeItem('token');
-  localStorage.removeItem('user');
-};
-
-export const getCurrentUser = () => {
-  const user = localStorage.getItem('user');
-  return user ? JSON.parse(user) : null;
-};
-
-export const isAuthenticated = () => {
-  return !!localStorage.getItem('token');
-};
-
-// Users
-export const fetchUsers = async () => {
-  const response = await fetch(`${API_URL}/users`, {
-    headers: getAuthHeaders()
-  });
   return response.json();
 };
 
-export const createUser = async (userData) => {
+export const createUser = async (username, password, isAdmin, createdBy) => {
   const response = await fetch(`${API_URL}/users/create`, {
     method: 'POST',
-    headers: getAuthHeaders(),
-    body: JSON.stringify(userData)
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, password, isAdmin, createdBy })
   });
   if (!response.ok) {
     const error = await response.json();
-    throw new Error(error.error || 'Erreur lors de la création');
+    throw new Error(error.error || 'Erreur de création');
   }
   return response.json();
 };
 
-export const deleteUser = async (userId) => {
-  await fetch(`${API_URL}/users/${userId}`, {
-    method: 'DELETE',
-    headers: getAuthHeaders()
+export const fetchUsers = async () => {
+  const response = await fetch(`${API_URL}/users`);
+  return response.json();
+};
+
+export const deleteUser = async (id) => {
+  const response = await fetch(`${API_URL}/users/${id}`, {
+    method: 'DELETE'
   });
+  return response.json();
 };
 
 // Exercises
-export const fetchExercises = async () => {
-  const response = await fetch(`${API_URL}/exercises`, {
-    headers: getAuthHeaders()
-  });
-  return response.json();
-};
-
-export const createExercise = async (exerciseData) => {
+export const createExercise = async (exercise) => {
   const response = await fetch(`${API_URL}/exercises`, {
     method: 'POST',
-    headers: getAuthHeaders(),
-    body: JSON.stringify(exerciseData)
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(exercise)
   });
   return response.json();
 };
 
-export const updateExercise = async (exerciseId, exerciseData) => {
-  const response = await fetch(`${API_URL}/exercises/${exerciseId}`, {
+export const fetchExercises = async () => {
+  const response = await fetch(`${API_URL}/exercises`);
+  return response.json();
+};
+
+export const getExercise = async (id) => {
+  const response = await fetch(`${API_URL}/exercises/${id}`);
+  return response.json();
+};
+
+export const updateExercise = async (id, exercise) => {
+  const response = await fetch(`${API_URL}/exercises/${id}`, {
     method: 'PUT',
-    headers: getAuthHeaders(),
-    body: JSON.stringify(exerciseData)
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(exercise)
   });
   return response.json();
 };
 
-export const deleteExercise = async (exerciseId) => {
-  await fetch(`${API_URL}/exercises/${exerciseId}`, {
-    method: 'DELETE',
-    headers: getAuthHeaders()
+export const deleteExercise = async (id) => {
+  const response = await fetch(`${API_URL}/exercises/${id}`, {
+    method: 'DELETE'
   });
+  return response.json();
 };
 
 // Scores
-export const fetchScores = async () => {
+export const saveScore = async (username, exerciseName, score, totalWords, correctWords, results) => {
   const response = await fetch(`${API_URL}/scores`, {
-    headers: getAuthHeaders()
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, exerciseName, score, totalWords, correctWords, results })
   });
   return response.json();
 };
 
-export const saveScore = async (scoreData) => {
-  const response = await fetch(`${API_URL}/scores`, {
-    method: 'POST',
-    headers: getAuthHeaders(),
-    body: JSON.stringify(scoreData)
-  });
+export const fetchScores = async () => {
+  const response = await fetch(`${API_URL}/scores`);
+  return response.json();
+};
+
+export const getUserScores = async (username) => {
+  const response = await fetch(`${API_URL}/scores/user/${username}`);
+  return response.json();
+};
+
+// Badges
+export const getBadgesMetadata = async () => {
+  const response = await fetch(`${API_URL}/badges/metadata`);
   return response.json();
 };
