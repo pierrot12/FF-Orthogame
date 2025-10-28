@@ -275,7 +275,7 @@ app.delete('/api/exercises/:id', async (req, res) => {
 // Scores
 app.post('/api/scores', async (req, res) => {
   try {
-    const { username, exerciseName, score, totalWords, correctWords } = req.body;
+    const { username, exerciseName, score, totalWords, correctWords, results } = req.body;
     
     if (!username || !exerciseName || score === undefined) {
       return res.status(400).json({ error: 'Données incomplètes' });
@@ -289,8 +289,93 @@ app.post('/api/scores', async (req, res) => {
       correctWords 
     });
     await newScore.save();
+    
+    // Mettre à jour les stats de l'utilisateur
+    const user = await User.findOne({ username });
+    if (user) {
+      if (!user.stats) {
+        user.stats = {};
+      }
+      
+      // Stats générales
+      user.stats.totalExercises = (user.stats.totalExercises || 0) + 1;
+      user.stats.totalWords = (user.stats.totalWords || 0) + totalWords;
+      user.stats.correctWords = (user.stats.correctWords || 0) + correctWords;
+      
+      if (score === 100) {
+        user.stats.perfectScores = (user.stats.perfectScores || 0) + 1;
+      }
+      
+      // Calculer les jours consécutifs
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const lastLogin = user.stats.lastLoginDate ? new Date(user.stats.lastLoginDate) : null;
+      
+      if (lastLogin) {
+        lastLogin.setHours(0, 0, 0, 0);
+        const diffDays = Math.floor((today - lastLogin) / (1000 * 60 * 60 * 24));
+        
+        if (diffDays === 1) {
+          user.stats.consecutiveDays = (user.stats.consecutiveDays || 0) + 1;
+        } else if (diffDays > 1) {
+          user.stats.consecutiveDays = 1;
+        }
+      } else {
+        user.stats.consecutiveDays = 1;
+      }
+      
+      user.stats.lastLoginDate = new Date();
+      
+      // Stats par type de mots (si results est fourni)
+      if (results && Array.isArray(results)) {
+        results.forEach(result => {
+          if (result.isCorrect) {
+            if (result.word.type === 'simple') {
+              user.stats.simpleWordsCorrect = (user.stats.simpleWordsCorrect || 0) + 1;
+            } else if (result.word.type === 'verb') {
+              user.stats.verbsCorrect = (user.stats.verbsCorrect || 0) + 1;
+              
+              if (result.word.conjugation === 'present') {
+                user.stats.presentCorrect = (user.stats.presentCorrect || 0) + 1;
+              } else if (result.word.conjugation === 'futur') {
+                user.stats.futurCorrect = (user.stats.futurCorrect || 0) + 1;
+              } else if (result.word.conjugation === 'imparfait') {
+                user.stats.imparfaitCorrect = (user.stats.imparfaitCorrect || 0) + 1;
+              } else if (result.word.conjugation === 'passe_compose') {
+                user.stats.passeComposeCorrect = (user.stats.passeComposeCorrect || 0) + 1;
+              }
+            }
+          }
+        });
+        
+        // Calculer la série de mots corrects consécutifs
+        let currentStreak = 0;
+        for (const result of results) {
+          if (result.isCorrect) {
+            currentStreak++;
+            if (currentStreak > (user.stats.bestStreak || 0)) {
+              user.stats.bestStreak = currentStreak;
+            }
+          } else {
+            currentStreak = 0;
+          }
+        }
+      }
+      
+      // Vérifier les nouveaux badges
+      const newBadges = checkBadges(user);
+      if (newBadges.length > 0) {
+        user.badges = [...user.badges, ...newBadges];
+        await user.save();
+        console.log(`🏆 Score enregistré: ${username} - ${score}% (${exerciseName}) - ${newBadges.length} nouveau(x) badge(s)`);
+        return res.json({ score: newScore, newBadges });
+      }
+      
+      await user.save();
+    }
+    
     console.log(`🏆 Score enregistré: ${username} - ${score}% (${exerciseName})`);
-    res.json(newScore);
+    res.json({ score: newScore, newBadges: [] });
   } catch (error) {
     console.error('❌ Erreur enregistrement score:', error.message);
     res.status(500).json({ error: error.message });
@@ -317,45 +402,112 @@ app.get('/api/scores/user/:username', async (req, res) => {
   }
 });
 
-// Route pour conjugaison
-app.get('/api/conjugate/:verb', async (req, res) => {
-  try {
-    const verb = req.params.verb;
-    const https = require('https');
-    
-    // Essayer plusieurs APIs
-    const apis = [
-      `https://conjugaison.org/api/${verb}`,
-      `https://api.verbiste.com/verb/${verb}`,
-    ];
-    
-    // Pour simplifier, on retourne juste une structure vide
-    // L'admin devra remplir manuellement
-    res.json({
-      success: false,
-      message: 'Remplis manuellement',
-      data: {
-        je: '',
-        tu: '',
-        il: '',
-        nous: '',
-        vous: '',
-        ils: ''
-      }
-    });
-  } catch (error) {
-    res.json({
-      success: false,
-      data: {
-        je: '',
-        tu: '',
-        il: '',
-        nous: '',
-        vous: '',
-        ils: ''
-      }
-    });
+// Fonction de détection des badges
+function checkBadges(user) {
+  const newBadges = [];
+  const stats = user.stats;
+  
+  // Badges de progression
+  if (stats.totalExercises >= 1 && !user.badges.includes('graine')) {
+    newBadges.push('graine');
   }
+  if (stats.totalExercises >= 5 && !user.badges.includes('pousse')) {
+    newBadges.push('pousse');
+  }
+  if (stats.totalExercises >= 20 && !user.badges.includes('arbre')) {
+    newBadges.push('arbre');
+  }
+  if (stats.totalExercises >= 50 && !user.badges.includes('maitre')) {
+    newBadges.push('maitre');
+  }
+  if (stats.totalExercises >= 100 && !user.badges.includes('empereur')) {
+    newBadges.push('empereur');
+  }
+  
+  // Badges de performance
+  if (stats.totalExercises >= 1 && !user.badges.includes('etoile1')) {
+    newBadges.push('etoile1');
+  }
+  if (stats.perfectScores >= 1 && !user.badges.includes('sansfaute')) {
+    newBadges.push('sansfaute');
+  }
+  if (stats.perfectScores >= 5 && !user.badges.includes('tireur')) {
+    newBadges.push('tireur');
+  }
+  if (stats.perfectScores >= 10 && !user.badges.includes('perfection')) {
+    newBadges.push('perfection');
+  }
+  
+  // Badges de persévérance
+  if (stats.consecutiveDays >= 2 && !user.badges.includes('flamme1')) {
+    newBadges.push('flamme1');
+  }
+  if (stats.consecutiveDays >= 5 && !user.badges.includes('flamme2')) {
+    newBadges.push('flamme2');
+  }
+  if (stats.consecutiveDays >= 10 && !user.badges.includes('flamme3')) {
+    newBadges.push('flamme3');
+  }
+  if (stats.consecutiveDays >= 7 && !user.badges.includes('arcenciel')) {
+    newBadges.push('arcenciel');
+  }
+  if (stats.consecutiveDays >= 30 && !user.badges.includes('foudre')) {
+    newBadges.push('foudre');
+  }
+  
+  // Badges spécialisés
+  if (stats.simpleWordsCorrect >= 20 && !user.badges.includes('roimots')) {
+    newBadges.push('roimots');
+  }
+  if (stats.verbsCorrect >= 20 && !user.badges.includes('jongleur')) {
+    newBadges.push('jongleur');
+  }
+  if (stats.presentCorrect >= 10 && !user.badges.includes('acrobate')) {
+    newBadges.push('acrobate');
+  }
+  if (stats.presentCorrect >= 5 && stats.futurCorrect >= 5 && 
+      stats.imparfaitCorrect >= 5 && stats.passeComposeCorrect >= 5 && 
+      !user.badges.includes('voyageur')) {
+    newBadges.push('voyageur');
+  }
+  
+  // Badges de défi
+  if (stats.bestStreak >= 100 && !user.badges.includes('cerveau')) {
+    newBadges.push('cerveau');
+  }
+  
+  return newBadges;
+}
+
+// Métadonnées des badges
+const badgeMetadata = {
+  graine: { name: '🌱 Graine d\'orthographe', description: 'Premier exercice réussi' },
+  pousse: { name: '🌿 Pousse prometteuse', description: '5 exercices réussis' },
+  arbre: { name: '🌳 Arbre de la connaissance', description: '20 exercices réussis' },
+  maitre: { name: '🏆 Maître des mots', description: '50 exercices réussis' },
+  empereur: { name: '👑 Empereur de l\'orthographe', description: '100 exercices réussis' },
+  
+  etoile1: { name: '⭐ Première étoile', description: 'Terminer un exercice' },
+  sansfaute: { name: '✨ Sans faute !', description: 'Premier score de 100%' },
+  tireur: { name: '🎯 Tireur d\'élite', description: '5 exercices à 100%' },
+  perfection: { name: '💎 Perfection incarnée', description: '10 exercices à 100%' },
+  
+  flamme1: { name: '🔥 Première flamme', description: '2 jours consécutifs' },
+  flamme2: { name: '🔥🔥 Série en feu', description: '5 jours consécutifs' },
+  flamme3: { name: '🔥🔥🔥 Incendie de motivation', description: '10 jours consécutifs' },
+  arcenciel: { name: '🌈 Arc-en-ciel', description: '7 jours d\'affilée' },
+  foudre: { name: '⚡ Foudre d\'énergie', description: '30 jours consécutifs' },
+  
+  roimots: { name: '📖 Roi des mots simples', description: '20 mots simples parfaits' },
+  jongleur: { name: '🎭 Jongleur de verbes', description: '20 verbes parfaits' },
+  acrobate: { name: '🎪 Acrobate du présent', description: '10 verbes au présent parfaits' },
+  voyageur: { name: '⏰ Voyageur du temps', description: 'Maîtriser tous les temps' },
+  
+  cerveau: { name: '🧠 Cerveau d\'acier', description: '100 mots corrects d\'affilée' }
+};
+
+app.get('/api/badges/metadata', (req, res) => {
+  res.json(badgeMetadata);
 });
 
 // Démarrage du serveur

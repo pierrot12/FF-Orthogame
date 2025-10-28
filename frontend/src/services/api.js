@@ -16,11 +16,12 @@ export const login = async (username, password) => {
   return response.json();
 };
 
-export const createUser = async (username, password, isAdmin, createdBy) => {
+// ✅ Accepter un objet au lieu de paramètres séparés
+export const createUser = async (userData) => {
   const response = await fetch(`${API_URL}/users/create`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username, password, isAdmin, createdBy })
+    body: JSON.stringify(userData)
   });
   if (!response.ok) {
     const error = await response.json();
@@ -78,13 +79,26 @@ export const deleteExercise = async (id) => {
 };
 
 // Scores
+// Scores - VERSION CORRIGÉE
 export const saveScore = async (username, exerciseName, score, totalWords, correctWords, results) => {
-  const response = await fetch(`${API_URL}/scores`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username, exerciseName, score, totalWords, correctWords, results })
-  });
-  return response.json();
+  try {
+    const response = await fetch(`${API_URL}/scores`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, exerciseName, score, totalWords, correctWords, results })
+    });
+    
+    // ✅ Vérifier si la réponse est OK
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Erreur inconnue' }));
+      throw new Error(error.error || `Erreur HTTP: ${response.status}`);
+    }
+    
+    return response.json();
+  } catch (error) {
+    console.error('Erreur lors de la sauvegarde du score:', error);
+    throw error;
+  }
 };
 
 export const fetchScores = async () => {
