@@ -46,7 +46,7 @@ const userSchema = new mongoose.Schema({
     consecutiveCorrect: { type: Number, default: 0 },
     bestStreak: { type: Number, default: 0 }
   }
-});
+}, { versionKey: false }); // ✅ FIX: Désactive le versioning qui cause le problème
 
 const wordSchema = new mongoose.Schema({
   text: { type: String, required: true },
@@ -272,7 +272,7 @@ app.delete('/api/exercises/:id', async (req, res) => {
   }
 });
 
-// Scores
+// Scores - VERSION CORRIGÉE
 app.post('/api/scores', async (req, res) => {
   try {
     const { username, exerciseName, score, totalWords, correctWords, results } = req.body;
@@ -281,6 +281,7 @@ app.post('/api/scores', async (req, res) => {
       return res.status(400).json({ error: 'Données incomplètes' });
     }
     
+    // Sauvegarder le score
     const newScore = new Score({ 
       username, 
       exerciseName, 
@@ -289,89 +290,115 @@ app.post('/api/scores', async (req, res) => {
       correctWords 
     });
     await newScore.save();
+    console.log(`✅ Score sauvegardé dans la base de données`);
     
-    // Mettre à jour les stats de l'utilisateur
+    // ✅ FIX: Utiliser findOneAndUpdate au lieu de save() pour éviter les conflits de version
     const user = await User.findOne({ username });
     if (user) {
-      if (!user.stats) {
-        user.stats = {};
-      }
+      const updateData = {
+        $inc: {
+          'stats.totalExercises': 1,
+          'stats.totalWords': totalWords,
+          'stats.correctWords': correctWords
+        }
+      };
       
-      // Stats générales
-      user.stats.totalExercises = (user.stats.totalExercises || 0) + 1;
-      user.stats.totalWords = (user.stats.totalWords || 0) + totalWords;
-      user.stats.correctWords = (user.stats.correctWords || 0) + correctWords;
-      
+      // Incrementer perfectScores si score est 100
       if (score === 100) {
-        user.stats.perfectScores = (user.stats.perfectScores || 0) + 1;
+        updateData.$inc['stats.perfectScores'] = 1;
       }
       
       // Calculer les jours consécutifs
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      const lastLogin = user.stats.lastLoginDate ? new Date(user.stats.lastLoginDate) : null;
+      const lastLogin = user.stats?.lastLoginDate ? new Date(user.stats.lastLoginDate) : null;
       
+      let consecutiveDays = user.stats?.consecutiveDays || 0;
       if (lastLogin) {
         lastLogin.setHours(0, 0, 0, 0);
         const diffDays = Math.floor((today - lastLogin) / (1000 * 60 * 60 * 24));
         
         if (diffDays === 1) {
-          user.stats.consecutiveDays = (user.stats.consecutiveDays || 0) + 1;
+          consecutiveDays = consecutiveDays + 1;
         } else if (diffDays > 1) {
-          user.stats.consecutiveDays = 1;
+          consecutiveDays = 1;
         }
       } else {
-        user.stats.consecutiveDays = 1;
+        consecutiveDays = 1;
       }
       
-      user.stats.lastLoginDate = new Date();
+      updateData.$set = {
+        'stats.consecutiveDays': consecutiveDays,
+        'stats.lastLoginDate': new Date()
+      };
       
-      // Stats par type de mots (si results est fourni)
+      // Analyser les résultats détaillés
       if (results && Array.isArray(results)) {
+        let simpleWordsCorrect = 0;
+        let verbsCorrect = 0;
+        let presentCorrect = 0;
+        let futurCorrect = 0;
+        let imparfaitCorrect = 0;
+        let passeComposeCorrect = 0;
+        let currentStreak = 0;
+        let bestStreak = user.stats?.bestStreak || 0;
+        
         results.forEach(result => {
           if (result.isCorrect) {
-            if (result.word.type === 'simple') {
-              user.stats.simpleWordsCorrect = (user.stats.simpleWordsCorrect || 0) + 1;
-            } else if (result.word.type === 'verb') {
-              user.stats.verbsCorrect = (user.stats.verbsCorrect || 0) + 1;
-              
-              if (result.word.conjugation === 'present') {
-                user.stats.presentCorrect = (user.stats.presentCorrect || 0) + 1;
-              } else if (result.word.conjugation === 'futur') {
-                user.stats.futurCorrect = (user.stats.futurCorrect || 0) + 1;
-              } else if (result.word.conjugation === 'imparfait') {
-                user.stats.imparfaitCorrect = (user.stats.imparfaitCorrect || 0) + 1;
-              } else if (result.word.conjugation === 'passe_compose') {
-                user.stats.passeComposeCorrect = (user.stats.passeComposeCorrect || 0) + 1;
-              }
-            }
-          }
-        });
-        
-        // Calculer la série de mots corrects consécutifs
-        let currentStreak = 0;
-        for (const result of results) {
-          if (result.isCorrect) {
             currentStreak++;
-            if (currentStreak > (user.stats.bestStreak || 0)) {
-              user.stats.bestStreak = currentStreak;
+            if (currentStreak > bestStreak) {
+              bestStreak = currentStreak;
+            }
+            
+            if (result.word?.type === 'simple') {
+              simpleWordsCorrect++;
+            } else if (result.word?.type === 'verb') {
+              verbsCorrect++;
+              
+              switch(result.word?.conjugation) {
+                case 'present': presentCorrect++; break;
+                case 'futur': futurCorrect++; break;
+                case 'imparfait': imparfaitCorrect++; break;
+                case 'passe_compose': passeComposeCorrect++; break;
+              }
             }
           } else {
             currentStreak = 0;
           }
+        });
+        
+        updateData.$inc['stats.simpleWordsCorrect'] = simpleWordsCorrect;
+        updateData.$inc['stats.verbsCorrect'] = verbsCorrect;
+        updateData.$inc['stats.presentCorrect'] = presentCorrect;
+        updateData.$inc['stats.futurCorrect'] = futurCorrect;
+        updateData.$inc['stats.imparfaitCorrect'] = imparfaitCorrect;
+        updateData.$inc['stats.passeComposeCorrect'] = passeComposeCorrect;
+        
+        if (bestStreak > (user.stats?.bestStreak || 0)) {
+          updateData.$set['stats.bestStreak'] = bestStreak;
         }
       }
       
+      // ✅ FIX: Mettre à jour l'utilisateur avec findOneAndUpdate
+      const updatedUser = await User.findOneAndUpdate(
+        { username },
+        updateData,
+        { new: true }
+      );
+      
       // Vérifier les nouveaux badges
-      const newBadges = checkBadges(user);
+      const newBadges = checkBadges(updatedUser);
       if (newBadges.length > 0) {
-        user.badges = [...user.badges, ...newBadges];
-        await user.save();
-        console.log(`🏆 Score enregistré: ${username} - ${score}% (${exerciseName}) - ${newBadges.length} nouveau(x) badge(s)`);
+        // Ajouter les nouveaux badges
+        await User.findOneAndUpdate(
+          { username },
+          { $addToSet: { badges: { $each: newBadges } } }
+        );
+        console.log(`🏆 ${newBadges.length} nouveau(x) badge(s) débloqué(s) pour ${username}`);
         return res.json({ score: newScore, newBadges });
       }
       
-      await user.save();
+      console.log(`📊 Stats mises à jour pour ${username}`);
     }
     
     console.log(`🏆 Score enregistré: ${username} - ${score}% (${exerciseName})`);
@@ -405,74 +432,75 @@ app.get('/api/scores/user/:username', async (req, res) => {
 // Fonction de détection des badges
 function checkBadges(user) {
   const newBadges = [];
-  const stats = user.stats;
+  const stats = user.stats || {};
+  const currentBadges = user.badges || [];
   
   // Badges de progression
-  if (stats.totalExercises >= 1 && !user.badges.includes('graine')) {
+  if (stats.totalExercises >= 1 && !currentBadges.includes('graine')) {
     newBadges.push('graine');
   }
-  if (stats.totalExercises >= 5 && !user.badges.includes('pousse')) {
+  if (stats.totalExercises >= 5 && !currentBadges.includes('pousse')) {
     newBadges.push('pousse');
   }
-  if (stats.totalExercises >= 20 && !user.badges.includes('arbre')) {
+  if (stats.totalExercises >= 20 && !currentBadges.includes('arbre')) {
     newBadges.push('arbre');
   }
-  if (stats.totalExercises >= 50 && !user.badges.includes('maitre')) {
+  if (stats.totalExercises >= 50 && !currentBadges.includes('maitre')) {
     newBadges.push('maitre');
   }
-  if (stats.totalExercises >= 100 && !user.badges.includes('empereur')) {
+  if (stats.totalExercises >= 100 && !currentBadges.includes('empereur')) {
     newBadges.push('empereur');
   }
   
   // Badges de performance
-  if (stats.totalExercises >= 1 && !user.badges.includes('etoile1')) {
+  if (stats.totalExercises >= 1 && !currentBadges.includes('etoile1')) {
     newBadges.push('etoile1');
   }
-  if (stats.perfectScores >= 1 && !user.badges.includes('sansfaute')) {
+  if (stats.perfectScores >= 1 && !currentBadges.includes('sansfaute')) {
     newBadges.push('sansfaute');
   }
-  if (stats.perfectScores >= 5 && !user.badges.includes('tireur')) {
+  if (stats.perfectScores >= 5 && !currentBadges.includes('tireur')) {
     newBadges.push('tireur');
   }
-  if (stats.perfectScores >= 10 && !user.badges.includes('perfection')) {
+  if (stats.perfectScores >= 10 && !currentBadges.includes('perfection')) {
     newBadges.push('perfection');
   }
   
   // Badges de persévérance
-  if (stats.consecutiveDays >= 2 && !user.badges.includes('flamme1')) {
+  if (stats.consecutiveDays >= 2 && !currentBadges.includes('flamme1')) {
     newBadges.push('flamme1');
   }
-  if (stats.consecutiveDays >= 5 && !user.badges.includes('flamme2')) {
+  if (stats.consecutiveDays >= 5 && !currentBadges.includes('flamme2')) {
     newBadges.push('flamme2');
   }
-  if (stats.consecutiveDays >= 10 && !user.badges.includes('flamme3')) {
+  if (stats.consecutiveDays >= 10 && !currentBadges.includes('flamme3')) {
     newBadges.push('flamme3');
   }
-  if (stats.consecutiveDays >= 7 && !user.badges.includes('arcenciel')) {
+  if (stats.consecutiveDays >= 7 && !currentBadges.includes('arcenciel')) {
     newBadges.push('arcenciel');
   }
-  if (stats.consecutiveDays >= 30 && !user.badges.includes('foudre')) {
+  if (stats.consecutiveDays >= 30 && !currentBadges.includes('foudre')) {
     newBadges.push('foudre');
   }
   
   // Badges spécialisés
-  if (stats.simpleWordsCorrect >= 20 && !user.badges.includes('roimots')) {
+  if (stats.simpleWordsCorrect >= 20 && !currentBadges.includes('roimots')) {
     newBadges.push('roimots');
   }
-  if (stats.verbsCorrect >= 20 && !user.badges.includes('jongleur')) {
+  if (stats.verbsCorrect >= 20 && !currentBadges.includes('jongleur')) {
     newBadges.push('jongleur');
   }
-  if (stats.presentCorrect >= 10 && !user.badges.includes('acrobate')) {
+  if (stats.presentCorrect >= 10 && !currentBadges.includes('acrobate')) {
     newBadges.push('acrobate');
   }
   if (stats.presentCorrect >= 5 && stats.futurCorrect >= 5 && 
       stats.imparfaitCorrect >= 5 && stats.passeComposeCorrect >= 5 && 
-      !user.badges.includes('voyageur')) {
+      !currentBadges.includes('voyageur')) {
     newBadges.push('voyageur');
   }
   
   // Badges de défi
-  if (stats.bestStreak >= 100 && !user.badges.includes('cerveau')) {
+  if (stats.bestStreak >= 100 && !currentBadges.includes('cerveau')) {
     newBadges.push('cerveau');
   }
   
