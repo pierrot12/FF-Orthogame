@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Trophy, CheckCircle, XCircle } from 'lucide-react';
 import { saveScore, getBadgesMetadata } from '../services/api';
 import BadgeNotification from './BadgeNotification';
@@ -7,15 +7,22 @@ export default function Results({ username, exercise, results, onBackToMenu, onU
   const [newBadges, setNewBadges] = useState([]);
   const [badgeMetadata, setBadgeMetadata] = useState({});
   const [showBadgeNotification, setShowBadgeNotification] = useState(false);
+  
+  // ✅ FIX: Utiliser un ref pour éviter les doubles sauvegardes
+  const scoreSaved = useRef(false);
 
   const totalWords = exercise.words.length;
   const correctWords = results.filter(r => r.isCorrect).length;
   const score = Math.round((correctWords / totalWords) * 100);
 
   useEffect(() => {
-    saveFinalScore();
+    // ✅ FIX: Vérifier qu'on n'a pas déjà sauvegardé
+    if (!scoreSaved.current && username && exercise && results && results.length > 0) {
+      scoreSaved.current = true; // Marquer comme sauvegardé AVANT l'appel
+      saveFinalScore();
+    }
     loadBadgeMetadata();
-  }, []);
+  }, []); // Dépendances vides intentionnellement
 
   const loadBadgeMetadata = async () => {
     try {
@@ -28,6 +35,8 @@ export default function Results({ username, exercise, results, onBackToMenu, onU
 
   const saveFinalScore = async () => {
     try {
+      console.log('📊 Sauvegarde du score en cours...');
+      
       const response = await saveScore(
         username,
         exercise.name,
@@ -36,6 +45,8 @@ export default function Results({ username, exercise, results, onBackToMenu, onU
         correctWords,
         results
       );
+
+      console.log('✅ Score sauvegardé avec succès');
 
       if (response.newBadges && response.newBadges.length > 0) {
         setNewBadges(response.newBadges);
@@ -47,7 +58,9 @@ export default function Results({ username, exercise, results, onBackToMenu, onU
         }
       }
     } catch (error) {
-      console.error('Erreur sauvegarde score:', error);
+      console.error('❌ Erreur sauvegarde score:', error);
+      // Réinitialiser le flag en cas d'erreur pour permettre un retry
+      scoreSaved.current = false;
     }
   };
 
